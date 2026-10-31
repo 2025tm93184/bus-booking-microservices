@@ -1,0 +1,150 @@
+
+services:
+
+  # PostgreSQL Database - Booking Service
+  booking-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${BOOKING_DB}
+      POSTGRES_USER: ${BOOKING_USER}
+      POSTGRES_PASSWORD: ${BOOKING_PASSWORD}
+    volumes:
+      - booking_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${BOOKING_USER} -d ${BOOKING_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # PostgreSQL Database - Seat Service
+  seat-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${SEAT_DB}
+      POSTGRES_USER: ${SEAT_USER}
+      POSTGRES_PASSWORD: ${SEAT_PASSWORD}
+    volumes:
+      - seat_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${SEAT_USER} -d ${SEAT_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # PostgreSQL Database - Payment Service
+  payment-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${PAYMENT_DB}
+      POSTGRES_USER: ${PAYMENT_USER}
+      POSTGRES_PASSWORD: ${PAYMENT_PASSWORD}
+    volumes:
+      - payment_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PAYMENT_USER} -d ${PAYMENT_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # PostgreSQL Database - Notification Service
+  notification-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${NOTIFICATION_DB}
+      POSTGRES_USER: ${NOTIFICATION_USER}
+      POSTGRES_PASSWORD: ${NOTIFICATION_PASSWORD}
+    volumes:
+      - notification_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${NOTIFICATION_USER} -d ${NOTIFICATION_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Booking Microservice
+  booking-service:
+    build:
+      context: ./services/booking
+    ports:
+      - "8001:8001"
+    environment:
+      DATABASE_URL: postgresql+psycopg://${BOOKING_USER}:${BOOKING_PASSWORD}@booking-db:5432/${BOOKING_DB}
+      SEAT_SERVICE_URL: http://seat-service:8002
+      PAYMENT_SERVICE_URL: http://payment-service:8003
+      NOTIFICATION_SERVICE_URL: http://notification-service:8004
+      SERVICE_TIMEOUT_SECONDS: "2.0"
+    depends_on:
+      booking-db:
+        condition: service_healthy
+      seat-service:
+        condition: service_healthy
+      payment-service:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Seat Microservice
+  seat-service:
+    build:
+      context: ./services/seat
+    ports:
+      - "8002:8002"
+    environment:
+      DATABASE_URL: postgresql+psycopg://${SEAT_USER}:${SEAT_PASSWORD}@seat-db:5432/${SEAT_DB}
+    depends_on:
+      seat-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Payment Microservice
+  payment-service:
+    build:
+      context: ./services/payment
+    ports:
+      - "8003:8003"
+    environment:
+      DATABASE_URL: postgresql+psycopg://${PAYMENT_USER}:${PAYMENT_PASSWORD}@payment-db:5432/${PAYMENT_DB}
+    depends_on:
+      payment-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8003/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Notification Microservice
+  notification-service:
+    build:
+      context: ./services/notification
+    ports:
+      - "8004:8004"
+    environment:
+      DATABASE_URL: postgresql+psycopg://${NOTIFICATION_USER}:${NOTIFICATION_PASSWORD}@notification-db:5432/${NOTIFICATION_DB}
+    depends_on:
+      notification-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8004/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  booking_data:
+  seat_data:
+  payment_data:
+  notification_data:
